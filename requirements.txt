@@ -1,0 +1,12 @@
+# Workshop participant requirements
+wandb
+torch
+torchvision
+timm
+scikit-learn
+numpy
+Pillow
+tqdm
+
+# Setup script only (admin)
+datasets

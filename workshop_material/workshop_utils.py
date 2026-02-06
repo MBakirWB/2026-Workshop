@@ -1,5 +1,5 @@
 """
-Workshop Utilities - AQUA20 Marine Species Classification
+Workshop Utilities - AQUA Marine Species Classification
 
 This module contains all the ML boilerplate code for the workshop.
 Participants can focus on W&B concepts while these utilities handle:
@@ -153,13 +153,36 @@ class AquaticDataset(Dataset):
 # =============================================================================
 
 def create_model(model_name: str = "resnet50", num_classes: int = NUM_CLASSES, 
-                 pretrained: bool = True):
-    """Create a model using the timm library."""
-    model = timm.create_model(
-        model_name,
-        pretrained=pretrained,
-        num_classes=num_classes
-    )
+                 pretrained: bool = True, weights_artifact: str = None, run=None):
+    """Create a model using timm. Optionally load weights from a W&B artifact.
+    
+    Args:
+        model_name: timm model name (e.g. 'resnet50', 'efficientnet_b0')
+        num_classes: Number of output classes
+        pretrained: If True and no weights_artifact, downloads from HuggingFace
+        weights_artifact: W&B artifact path for pretrained weights (air-gapped mode)
+        run: Active wandb run (required if weights_artifact is set, for lineage)
+    """
+    if weights_artifact and run:
+        # Air-gapped: load pretrained weights from W&B artifact
+        model = timm.create_model(model_name, pretrained=False, num_classes=1000)
+        artifact = run.use_artifact(weights_artifact, type="pretrained-weights")
+        weights_dir = artifact.download()
+        state_dict = torch.load(
+            os.path.join(weights_dir, f"{model_name}_imagenet.pth"),
+            map_location="cpu"
+        )
+        model.load_state_dict(state_dict)
+        # Replace classifier head for our num_classes
+        if hasattr(model, 'head') and hasattr(model.head, 'in_features'):
+            model.head = nn.Linear(model.head.in_features, num_classes)
+        elif hasattr(model, 'fc') and hasattr(model.fc, 'in_features'):
+            model.fc = nn.Linear(model.fc.in_features, num_classes)
+        elif hasattr(model, 'classifier') and hasattr(model.classifier, 'in_features'):
+            model.classifier = nn.Linear(model.classifier.in_features, num_classes)
+    else:
+        # Normal path: timm downloads from HuggingFace
+        model = timm.create_model(model_name, pretrained=pretrained, num_classes=num_classes)
     return model
 
 def count_parameters(model):
@@ -582,4 +605,3 @@ __all__ = [
 # Print confirmation when imported
 print(f"   Workshop utilities loaded")
 print(f"   Device: {DEVICE}")
-print(f"   Classes: {NUM_CLASSES} marine species")
