@@ -31,9 +31,6 @@ import wandb
 
 warnings.filterwarnings('ignore')
 
-# =============================================================================
-# CONSTANTS
-# =============================================================================
 
 # AQUA20 class names (20 marine species)
 CLASS_NAMES = [
@@ -316,99 +313,7 @@ def generate_run_name(config: Dict) -> str:
     lr_str = f"{lr:.0e}".replace("-0", "-")
     
     return f"{model}-lr{lr_str}-bs{bs}-ep{ep}"
-
-def update_best_metric(run, key: str, value: float, mode: str = "max"):
-    """Update run summary with best value (for leaderboards)."""
-    current_best = run.summary.get(key)
-    if current_best is None:
-        run.summary[key] = value
-    elif mode == "max" and value > current_best:
-        run.summary[key] = value
-    elif mode == "min" and value < current_best:
-        run.summary[key] = value
-
-# =============================================================================
-# QUICK START FUNCTION
-# =============================================================================
-
-def setup_training(config: Dict) -> Tuple:
-    """
-    One-line setup for training components.
-    
-    Returns: model, criterion, optimizer, scaler, device
-    """
-    set_seed(config.get("seed", 42))
-    
-    model = create_model(
-        config.get("model_name", "resnet50"),
-        config.get("num_classes", NUM_CLASSES),
-        config.get("pretrained", True)
-    )
-    model = model.to(DEVICE)
-    
-    criterion = nn.CrossEntropyLoss()
-    optimizer = optim.AdamW(
-        model.parameters(),
-        lr=config.get("learning_rate", 1e-4),
-        weight_decay=config.get("weight_decay", 0.01)
-    )
-    scaler = GradScaler(enabled=config.get("use_amp", True))
-    
-    return model, criterion, optimizer, scaler, DEVICE
-
-
-def load_datasets_from_artifacts(run, train_artifact: str, val_artifact: str, 
-                                  config: Dict) -> Tuple[DataLoader, DataLoader]:
-    """
-    Download W&B artifacts and create DataLoaders.
-    
-    This creates lineage in W&B showing which datasets were used!
-    """
-    # Download artifacts (creates lineage!)
-    train_art = run.use_artifact(train_artifact, type='dataset')
-    train_dir = train_art.download()
-    
-    val_art = run.use_artifact(val_artifact, type='dataset')
-    val_dir = val_art.download()
-    
-    # Create datasets
-    image_size = config.get("image_size", 224)
-    train_dataset = AquaticDataset(
-        train_dir, 
-        transform=get_transforms(image_size, is_training=True),
-        max_samples=config.get("max_samples")
-    )
-    val_dataset = AquaticDataset(
-        val_dir, 
-        transform=get_transforms(image_size, is_training=False)
-    )
-    
-    # Create DataLoaders
-    train_loader = DataLoader(
-        train_dataset,
-        batch_size=config.get("batch_size", 32),
-        shuffle=True,
-        num_workers=config.get("num_workers", 4),
-        pin_memory=True
-    )
-    val_loader = DataLoader(
-        val_dataset,
-        batch_size=config.get("batch_size", 32),
-        shuffle=False,
-        num_workers=config.get("num_workers", 4),
-        pin_memory=True
-    )
-    
-    print(f"📦 Loaded {len(train_dataset)} training samples")
-    print(f"📦 Loaded {len(val_dataset)} validation samples")
-    
-    return train_loader, val_loader, train_dataset, val_dataset
-
-
-# =============================================================================
 # VISUALIZATION HELPERS
-# =============================================================================
-
 def create_prediction_images(dataset, preds, probs, class_names, n_samples=16, image_size=224):
     """
     Create a list of wandb.Image objects with prediction captions.
@@ -501,91 +406,7 @@ def create_predictions_table(dataset, preds, probs, class_names, n_samples=100, 
         table.add_data(*row_data)
 
     return table
-
-
-def create_confusion_matrix(y_true, y_pred, class_names, normalize=True):
-    """
-    Create a confusion matrix figure.
-    
-    Args:
-        y_true: True labels
-        y_pred: Predicted labels
-        class_names: List of class names
-        normalize: Whether to normalize the matrix
-        
-    Returns:
-        matplotlib Figure object ready for wandb.Image()
-    """
-    import matplotlib.pyplot as plt
-    from sklearn.metrics import confusion_matrix
-    
-    # Get unique classes that appear in the data (handles subsets)
-    unique_classes = sorted(set(y_true) | set(y_pred))
-    display_names = [class_names[i] if i < len(class_names) else str(i) for i in unique_classes]
-
-    cm = confusion_matrix(y_true, y_pred, labels=unique_classes)
-
-    if normalize:
-        cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
-        cm = np.nan_to_num(cm)  # Handle division by zero
-
-    fig, ax = plt.subplots(figsize=(max(10, len(unique_classes)), max(8, len(unique_classes) * 0.8)))
-    im = ax.imshow(cm, interpolation='nearest', cmap='Blues')
-    ax.figure.colorbar(im, ax=ax)
-
-    ax.set(
-        xticks=np.arange(len(display_names)),
-        yticks=np.arange(len(display_names)),
-        xticklabels=display_names,
-        yticklabels=display_names,
-        ylabel='True label',
-        xlabel='Predicted label',
-        title='Confusion Matrix (Normalized)' if normalize else 'Confusion Matrix'
-    )
-
-    plt.setp(ax.get_xticklabels(), rotation=45, ha="right", rotation_mode="anchor")
-
-    fmt = '.2f' if normalize else 'd'
-    thresh = cm.max() / 2.
-    for i in range(len(display_names)):
-        for j in range(len(display_names)):
-            ax.text(j, i, format(cm[i, j], fmt),
-                    ha="center", va="center",
-                    color="white" if cm[i, j] > thresh else "black",
-                    fontsize=8 if len(display_names) < 15 else 6)
-
-    plt.tight_layout()
-    return fig
-
-
-def compute_per_class_metrics(y_true, y_pred, class_names):
-    """
-    Compute per-class precision, recall, and F1 scores.
-    
-    Returns:
-        Dict with per-class metrics ready for wandb.log()
-    """
-    from sklearn.metrics import precision_recall_fscore_support
-    
-    precision, recall, f1, support = precision_recall_fscore_support(
-        y_true, y_pred, labels=range(len(class_names)), zero_division=0
-    )
-    
-    metrics = {}
-    for i, name in enumerate(class_names):
-        if support[i] > 0:  # Only include classes present in data
-            metrics[f"per_class/{name}/precision"] = precision[i]
-            metrics[f"per_class/{name}/recall"] = recall[i]
-            metrics[f"per_class/{name}/f1"] = f1[i]
-            metrics[f"per_class/{name}/support"] = int(support[i])
-    
-    return metrics
-
-
-# =============================================================================
 # NOTEBOOK HELPERS  (keep W&B calls visible, hide PyTorch boilerplate)
-# =============================================================================
-
 def create_dataloaders(
     train_dir: str,
     val_dir: str,
@@ -721,10 +542,8 @@ def log_checkpoint_artifact(
     print(f"  Logged checkpoint artifact (aliases: {aliases}, TTL: {ttl_days}d)")
 
 
-# =============================================================================
-# EXPORTS
-# =============================================================================
 
+# EXPORTS
 __all__ = [
     # Constants
     "CLASS_NAMES", "NUM_CLASSES", "DEVICE",
@@ -732,18 +551,12 @@ __all__ = [
     "set_seed", "get_device", "get_transforms",
     "create_model", "count_parameters",
     "train_one_epoch", "evaluate",
-    "generate_run_name", "update_best_metric",
-    "setup_training", "load_datasets_from_artifacts",
+    "generate_run_name",
     # Notebook helpers (keep W&B visible, hide boilerplate)
     "create_dataloaders", "create_training_components",
     "save_checkpoint", "log_checkpoint_artifact",
     # Visualization helpers
     "create_prediction_images", "create_predictions_table",
-    "create_confusion_matrix", "compute_per_class_metrics",
     # Classes
     "AquaticDataset",
 ]
-
-# Print confirmation when imported
-print(f"   Workshop utilities loaded")
-print(f"   Device: {DEVICE}")
