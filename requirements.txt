@@ -1,5 +1,5 @@
 # Workshop participant requirements
-wandb
+wandb[workspaces]
 torch
 torchvision
 timm
