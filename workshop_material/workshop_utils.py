@@ -583,6 +583,145 @@ def compute_per_class_metrics(y_true, y_pred, class_names):
 
 
 # =============================================================================
+# NOTEBOOK HELPERS  (keep W&B calls visible, hide PyTorch boilerplate)
+# =============================================================================
+
+def create_dataloaders(
+    train_dir: str,
+    val_dir: str,
+    test_dir: str,
+    config: Dict,
+) -> Tuple[DataLoader, DataLoader, DataLoader]:
+    """Create train/val/test DataLoaders from already-downloaded artifact dirs.
+
+    Call *after* ``run.use_artifact().download()`` so lineage stays visible
+    in the notebook.
+
+    Returns:
+        (train_loader, val_loader, test_loader)
+    """
+    image_size = config.get("image_size", 224)
+    batch_size = config.get("batch_size", 32)
+    max_samples = config.get("max_samples")
+
+    train_dataset = AquaticDataset(
+        train_dir,
+        transform=get_transforms(image_size, is_training=True),
+        class_names=CLASS_NAMES,
+        max_samples=max_samples,
+    )
+    val_dataset = AquaticDataset(
+        val_dir,
+        transform=get_transforms(image_size, is_training=False),
+        class_names=CLASS_NAMES,
+    )
+    test_dataset = AquaticDataset(
+        test_dir,
+        transform=get_transforms(image_size, is_training=False),
+        class_names=CLASS_NAMES,
+    )
+
+    loader_kwargs = dict(num_workers=0, pin_memory=True)
+
+    train_loader = DataLoader(
+        train_dataset, batch_size=batch_size, shuffle=True,
+        drop_last=True, **loader_kwargs,
+    )
+    val_loader = DataLoader(
+        val_dataset, batch_size=batch_size, shuffle=False, **loader_kwargs,
+    )
+    test_loader = DataLoader(
+        test_dataset, batch_size=batch_size, shuffle=False, **loader_kwargs,
+    )
+
+    print(f"  Train: {len(train_dataset)} samples, {len(train_loader)} batches")
+    print(f"  Val:   {len(val_dataset)} samples, {len(val_loader)} batches")
+    print(f"  Test:  {len(test_dataset)} samples, {len(test_loader)} batches")
+
+    return train_loader, val_loader, test_loader
+
+
+def create_training_components(model, config: Dict):
+    """Create criterion, optimizer, scheduler, and scaler from config.
+
+    Returns:
+        (criterion, optimizer, scheduler, scaler)
+    """
+    criterion = nn.CrossEntropyLoss()
+    optimizer = optim.AdamW(
+        model.parameters(),
+        lr=config.get("learning_rate", 1e-3),
+        weight_decay=config.get("weight_decay", 1e-4),
+    )
+    scheduler = optim.lr_scheduler.CosineAnnealingLR(
+        optimizer, T_max=config.get("epochs", 3),
+    )
+    scaler = GradScaler(enabled=config.get("use_amp", True))
+    return criterion, optimizer, scheduler, scaler
+
+
+def save_checkpoint(
+    model, optimizer, config: Dict,
+    epoch: int, val_acc: float, val_loss: float,
+    path: str,
+):
+    """Save a PyTorch training checkpoint to *path*."""
+    torch.save({
+        "epoch": epoch,
+        "model_state_dict": model.state_dict(),
+        "optimizer_state_dict": optimizer.state_dict(),
+        "val_acc": val_acc,
+        "val_loss": val_loss,
+        "config": config,
+    }, path)
+
+
+def log_checkpoint_artifact(
+    run,
+    model,
+    optimizer,
+    config: Dict,
+    epoch: int,
+    metrics: Dict,
+    is_best: bool = False,
+    is_last: bool = False,
+    ttl_days: int = 7,
+):
+    """Create a versioned W&B Artifact for a model checkpoint.
+
+    Sets a TTL so intermediate checkpoints are auto-cleaned, and applies
+    ``best`` / ``latest`` aliases as appropriate.
+    """
+    from datetime import timedelta
+
+    artifact = wandb.Artifact(
+        name=f"model-{config.get('model_name', 'model')}",
+        type="model",
+        metadata={**metrics, "epoch": epoch},
+    )
+    artifact.ttl = timedelta(days=ttl_days)
+
+    # Save checkpoint to a temp file and add to artifact
+    ckpt_path = f"checkpoint_epoch{epoch}.pth"
+    torch.save({
+        "epoch": epoch,
+        "model_state_dict": model.state_dict(),
+        "optimizer_state_dict": optimizer.state_dict(),
+        "config": config,
+    }, ckpt_path)
+    artifact.add_file(ckpt_path)
+
+    aliases = [f"epoch_{epoch}"]
+    if is_best:
+        aliases.append("best")
+    if is_last:
+        aliases.append("latest")
+
+    run.log_artifact(artifact, aliases=aliases)
+    print(f"  Logged checkpoint artifact (aliases: {aliases}, TTL: {ttl_days}d)")
+
+
+# =============================================================================
 # EXPORTS
 # =============================================================================
 
@@ -595,6 +734,9 @@ __all__ = [
     "train_one_epoch", "evaluate",
     "generate_run_name", "update_best_metric",
     "setup_training", "load_datasets_from_artifacts",
+    # Notebook helpers (keep W&B visible, hide boilerplate)
+    "create_dataloaders", "create_training_components",
+    "save_checkpoint", "log_checkpoint_artifact",
     # Visualization helpers
     "create_prediction_images", "create_predictions_table",
     "create_confusion_matrix", "compute_per_class_metrics",
