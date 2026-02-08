@@ -2,7 +2,7 @@
 
 Run this **once** before the workshop from a machine with internet access and connectivity to the W&B instance.
 
-This script downloads the AQUA dataset from HuggingFace, creates train/val/test splits, builds an EDA exploration table, and uploads pretrained model weights (resnet50, efficientnet_b0) -- all as W&B artifacts. Participants pull everything from W&B during the workshop.
+This script downloads the AQUA dataset from HuggingFace, creates train/val/test splits, builds an EDA exploration table, and uploads pretrained model weights (resnet50, efficientnet_b0) -- all as W&B artifacts. It also copies the splits and weights into `../workshop_material/` so participants have everything pre-loaded locally.
 
 ## Prerequisites
 
@@ -15,7 +15,7 @@ This script downloads the AQUA dataset from HuggingFace, creates train/val/test 
 
 ```bash
 git clone <repo-url>
-cd 2025-Workshop/admin_setup_only
+cd 2026-Workshop/admin_setup_only
 python -m venv workshop-setup
 source workshop-setup/bin/activate
 pip install -r ../requirements.txt
@@ -38,7 +38,7 @@ The project is fixed to `SIE-Workshop-2026`.
 
 | Artifact | Type | Description |
 |----------|------|-------------|
-| `aqua-raw-dataset` | dataset | Full AQUA20 dataset (8,171 images, 20 classes) |
+| `aqua-raw-dataset` | dataset | Full AQUA dataset (8,171 images, 20 classes) |
 | `aqua-train` | dataset | Training split (80%) |
 | `aqua-val` | dataset | Validation split (10%) |
 | `aqua-test` | dataset | Test split (10%) |
@@ -46,6 +46,35 @@ The project is fixed to `SIE-Workshop-2026`.
 | `pretrained-efficientnet_b0` | pretrained-weights | ImageNet weights for efficientnet_b0 |
 
 It also logs a `dataset-eda-exploration` run with an interactive table for data exploration.
+
+## What it creates locally
+
+After running, `../workshop_material/` will contain pre-loaded data for participants:
+
+```
+workshop_material/
+  data/
+    train/       # ~6,500 images in class subfolders
+    val/         # ~800 images in class subfolders
+    test/        # ~800 images in class subfolders
+  pretrained_weights/
+    resnet50_imagenet.pth
+    efficientnet_b0_imagenet.pth
+```
+
+Participants use this local data during the workshop. The notebook calls `use_artifact()` to build lineage in W&B without re-downloading the data.
+
+## Fallback: data-only setup (no W&B required)
+
+If the workshop environment doesn't have the pre-loaded data (e.g., the admin forgot to run `setup.py`, or you're running on a fresh machine), use the fallback script to prepare just the local data -- no W&B account or instance needed:
+
+```bash
+cd admin_setup_only
+pip install datasets torch timm Pillow numpy scikit-learn
+python prepare_local_data.py
+```
+
+This downloads the dataset from HuggingFace, creates identical splits, downloads pretrained weights, and places everything into `../workshop_material/`. It does **not** upload anything to W&B -- you'll need to run `setup.py` separately for that.
 
 ## Participant environment
 
@@ -55,4 +84,4 @@ Participants need these packages pre-installed (see `../requirements.txt`):
 wandb torch torchvision timm scikit-learn numpy Pillow tqdm
 ```
 
-They do **not** need `datasets` (HuggingFace) -- all data comes from W&B artifacts.
+They do **not** need `datasets` (HuggingFace) -- all data is pre-loaded locally and tracked via W&B artifacts.

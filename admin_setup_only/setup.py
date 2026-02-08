@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-Upload AQUA20 Dataset to W&B and Link to Organization Registry
+Upload AQUA Dataset to W&B and Link to Organization Registry
 
-AQUA20 Dataset
+AQUA Dataset
 ==============
-The AQUA20 dataset is a comprehensive benchmark dataset designed for underwater 
+The AQUA dataset is a comprehensive benchmark dataset designed for underwater 
 species classification under challenging real-world conditions. It comprises 
 8,171 underwater images across 20 distinct marine species, specifically curated 
 to reflect environmental complexities such as turbidity, low illumination, and 
@@ -13,7 +13,7 @@ This dataset provides a valuable resource for advancing robust visual recognitio
 in aquatic environments.
 
 Reference:
-    AQUA20: A Benchmark Dataset for Underwater Species Classification 
+    AQUA: A Benchmark Dataset for Underwater Species Classification 
     under Challenging Conditions
 
 Species (20 classes):
@@ -21,7 +21,7 @@ Species (20 classes):
     marine_dolphin, octopus, rayfish, seaAnemone, seaCucumber, seaSlug,
     seaUrchin, shark, shrimp, squid, starfish, turtle
 
-Source: https://huggingface.co/datasets/taufiktrf/AQUA20
+Source: https://huggingface.co/datasets/taufiktrf/AQUA
 """
 
 import os
@@ -48,7 +48,7 @@ WANDB_ENTITY = None
 WANDB_PROJECT = "SIE-Workshop-2026"
 
 #Uploads
-DATASET_NAME = "taufiktrf/aqua20"
+DATASET_NAME = "taufiktrf/aqua"
 ARTIFACT_NAME = "aqua-raw-dataset"
 ARTIFACT_TYPE = "dataset"
 
@@ -71,9 +71,9 @@ SEED = 42
 EDA_SAMPLES_PER_CLASS = 25  # Stratified sample size per class for EDA table
 
 # Dataset description for artifact metadata
-DATASET_DESCRIPTION = """The AQUA20 dataset is a comprehensive benchmark dataset designed for underwater species classification under challenging real-world conditions. It comprises 8,171 underwater images across 20 distinct marine species, specifically curated to reflect environmental complexities such as turbidity, low illumination, and occlusion, which commonly degrade the performance of standard vision systems. This dataset provides a valuable resource for advancing robust visual recognition in aquatic environments.
+DATASET_DESCRIPTION = """The AQUA dataset is a comprehensive benchmark dataset designed for underwater species classification under challenging real-world conditions. It comprises 8,171 underwater images across 20 distinct marine species, specifically curated to reflect environmental complexities such as turbidity, low illumination, and occlusion, which commonly degrade the performance of standard vision systems. This dataset provides a valuable resource for advancing robust visual recognition in aquatic environments.
 
-Reference: AQUA20: A Benchmark Dataset for Underwater Species Classification under Challenging Conditions"""
+Reference: AQUA: A Benchmark Dataset for Underwater Species Classification under Challenging Conditions"""
 
 
 def create_split_indices(image_files, train_ratio=0.8, val_ratio=0.1, test_ratio=0.1, seed=42):
@@ -264,7 +264,7 @@ def main(entity=None, host=None):
     metadata = {
         "source": DATASET_NAME,
         "description": DATASET_DESCRIPTION,
-        "reference": "AQUA20: A Benchmark Dataset for Underwater Species Classification under Challenging Conditions",
+        "reference": "AQUA: A Benchmark Dataset for Underwater Species Classification under Challenging Conditions",
         "domain": "underwater_species_classification",
         "total_samples": total_saved,
         "num_classes": num_classes,
@@ -312,8 +312,8 @@ def main(entity=None, host=None):
         project=WANDB_PROJECT,
         name="dataset-splitting",
         job_type="data-processing",
-        tags=["aqua20", "data-pipeline", "splitting"],
-        notes="Split raw AQUA20 data into train/val/test sets",
+        tags=["aqua", "data-pipeline", "splitting"],
+        notes="Split raw AQUA data into train/val/test sets",
         config={
             "train_ratio": TRAIN_RATIO,
             "val_ratio": VAL_RATIO,
@@ -348,9 +348,9 @@ def main(entity=None, host=None):
     
     # Log each split as a separate artifact
     splits_config = [
-        ("train", split_indices["train"], ["latest", "training-ready"], ["train-split", "aqua20"]),
-        ("val", split_indices["val"], ["latest", "validation-ready"], ["val-split", "aqua20"]),
-        ("test", split_indices["test"], ["latest", "holdout"], ["test-split", "holdout-data", "aqua20"])
+        ("train", split_indices["train"], ["latest", "training-ready"], ["train-split", "aqua"]),
+        ("val", split_indices["val"], ["latest", "validation-ready"], ["val-split", "aqua"]),
+        ("test", split_indices["test"], ["latest", "holdout"], ["test-split", "holdout-data", "aqua"])
     ]
     
     for split_name, indices, aliases, tags in splits_config:
@@ -380,7 +380,7 @@ def main(entity=None, host=None):
         split_artifact = wandb.Artifact(
             name=f"aqua-{split_name}",
             type=ARTIFACT_TYPE,
-            description=f"AQUA20 {split_name} split - derived from raw dataset in registry",
+            description=f"AQUA {split_name} split - derived from raw dataset in registry",
             metadata=split_metadata
         )
         
@@ -403,7 +403,7 @@ def main(entity=None, host=None):
         project=WANDB_PROJECT,
         name="dataset-eda-exploration",
         job_type="data-analysis",
-        tags=["aqua20", "eda", "exploration", "workshop"],
+        tags=["aqua", "eda", "exploration", "workshop"],
         notes="Stratified sample with image statistics for interactive data exploration",
         config={
             "samples_per_class": EDA_SAMPLES_PER_CLASS,
@@ -517,16 +517,50 @@ def main(entity=None, host=None):
         artifact.add_file(weights_path)
         weights_run.log_artifact(artifact, aliases=["latest"])
 
-        os.remove(weights_path)
         print(f"  Logged: pretrained-{model_name}")
 
     wandb.finish()
     print("Pretrained weights uploaded to W&B.")
 
-    # Cleanup
+    # Step 8: Prepare participant local data directory
+    # Copies dataset splits and pretrained weights into workshop_material/
+    # so participants have everything pre-loaded locally.
+    print("\nStep 8: Preparing participant local data directory...")
+    PARTICIPANT_DIR = os.path.join("..", "workshop_material")
+    PARTICIPANT_DATA_DIR = os.path.join(PARTICIPANT_DIR, "data")
+    PARTICIPANT_WEIGHTS_DIR = os.path.join(PARTICIPANT_DIR, "pretrained_weights")
+
+    # Copy dataset splits (train/val/test with class subfolders)
+    if os.path.exists(PARTICIPANT_DATA_DIR):
+        shutil.rmtree(PARTICIPANT_DATA_DIR)
+    shutil.copytree(SPLITS_DIR, PARTICIPANT_DATA_DIR)
+    for split in ["train", "val", "test"]:
+        split_path = os.path.join(PARTICIPANT_DATA_DIR, split)
+        if os.path.exists(split_path):
+            n_files = sum(len(files) for _, _, files in os.walk(split_path))
+            print(f"  Copied {split} split ({n_files} files) to {split_path}")
+
+    # Copy pretrained weights
+    if os.path.exists(PARTICIPANT_WEIGHTS_DIR):
+        shutil.rmtree(PARTICIPANT_WEIGHTS_DIR)
+    os.makedirs(PARTICIPANT_WEIGHTS_DIR, exist_ok=True)
+    for model_name in WORKSHOP_MODELS:
+        src = f"{model_name}_imagenet.pth"
+        dst = os.path.join(PARTICIPANT_WEIGHTS_DIR, src)
+        if os.path.exists(src):
+            shutil.copy2(src, dst)
+            print(f"  Copied {src} to {PARTICIPANT_WEIGHTS_DIR}/")
+
+    print(f"\nParticipant data ready at: {os.path.abspath(PARTICIPANT_DIR)}")
+
+    # Cleanup temporary working files
     shutil.rmtree(DATA_DIR, ignore_errors=True)
     shutil.rmtree(SPLITS_DIR, ignore_errors=True)
     shutil.rmtree("wandb", ignore_errors=True)
+    for model_name in WORKSHOP_MODELS:
+        weights_file = f"{model_name}_imagenet.pth"
+        if os.path.exists(weights_file):
+            os.remove(weights_file)
     
     print("\nDone! Setup complete.")
 
