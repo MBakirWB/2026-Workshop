@@ -21,7 +21,7 @@ Species (20 classes):
     marine_dolphin, octopus, rayfish, seaAnemone, seaCucumber, seaSlug,
     seaUrchin, shark, shrimp, squid, starfish, turtle
 
-Source: https://huggingface.co/datasets/taufiktrf/AQUA
+Source: https://huggingface.co/datasets/taufiktrf/AQUA20
 """
 
 import os
@@ -48,7 +48,7 @@ WANDB_ENTITY = None
 WANDB_PROJECT = "SIE-Workshop-2026"
 
 #Uploads
-DATASET_NAME = "taufiktrf/aqua"
+DATASET_NAME = "taufiktrf/aqua20"
 ARTIFACT_NAME = "aqua-raw-dataset"
 ARTIFACT_TYPE = "dataset"
 
