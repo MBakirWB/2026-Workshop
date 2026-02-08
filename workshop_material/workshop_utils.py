@@ -32,7 +32,7 @@ import wandb
 warnings.filterwarnings('ignore')
 
 
-# AQUA20 class names (20 marine species)
+# AQUA class names (20 marine species)
 CLASS_NAMES = [
     "coral", "crab", "diver", "eel", "fish", "fishInGroups", "flatworm", 
     "jellyfish", "marine_dolphin", "octopus", "rayfish", "seaAnemone", 
@@ -140,7 +140,8 @@ class AquaticDataset(Dataset):
 
 # MODEL CREATION
 def create_model(model_name: str = "resnet50", num_classes: int = NUM_CLASSES, 
-                 pretrained: bool = True, weights_artifact: str = None, run=None):
+                 pretrained: bool = True, weights_artifact: str = None, run=None,
+                 local_weights_dir: str = None):
     """Create a model using timm. Optionally load weights from a W&B artifact.
     
     Args:
@@ -149,16 +150,23 @@ def create_model(model_name: str = "resnet50", num_classes: int = NUM_CLASSES,
         pretrained: If True and no weights_artifact, downloads from HuggingFace
         weights_artifact: W&B artifact path for pretrained weights (air-gapped mode)
         run: Active wandb run (required if weights_artifact is set, for lineage)
+        local_weights_dir: Path to local directory with pretrained weights.
+            When set, weights are loaded from disk and use_artifact() is called
+            purely for lineage tracking (no download).
     """
     if weights_artifact and run:
-        # Air-gapped: load pretrained weights from W&B artifact
+        # Track lineage in W&B
+        run.use_artifact(weights_artifact, type="pretrained-weights")
+
+        # Resolve weights path: local directory or W&B artifact download
+        if local_weights_dir:
+            weights_path = os.path.join(local_weights_dir, f"{model_name}_imagenet.pth")
+        else:
+            artifact = run.use_artifact(weights_artifact, type="pretrained-weights")
+            weights_path = os.path.join(artifact.download(), f"{model_name}_imagenet.pth")
+
         model = timm.create_model(model_name, pretrained=False, num_classes=1000)
-        artifact = run.use_artifact(weights_artifact, type="pretrained-weights")
-        weights_dir = artifact.download()
-        state_dict = torch.load(
-            os.path.join(weights_dir, f"{model_name}_imagenet.pth"),
-            map_location="cpu"
-        )
+        state_dict = torch.load(weights_path, map_location="cpu")
         model.load_state_dict(state_dict)
         # Replace classifier head for our num_classes
         if hasattr(model, 'head') and hasattr(model.head, 'in_features'):
