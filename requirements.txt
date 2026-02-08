@@ -1,5 +1,6 @@
 # Workshop participant requirements
-wandb[workspaces]
+wandb-workspaces
+wandb
 torch
 torchvision
 timm
@@ -7,6 +8,7 @@ scikit-learn
 numpy
 Pillow
 tqdm
+nbformat
 
 # Setup script only (admin)
 datasets
