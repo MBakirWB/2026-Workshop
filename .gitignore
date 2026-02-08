@@ -1,0 +1,22 @@
+# Pre-loaded workshop data (large binary files)
+workshop_material/data/
+workshop_material/pretrained_weights/
+
+# Training artifacts created during notebook execution
+workshop_material/artifacts/
+workshop_material/*.pth
+
+# Temporary working directories created by setup.py / prepare_local_data.py
+admin_setup_only/aqua_raw_data/
+admin_setup_only/aqua_splits/
+admin_setup_only/*.pth
+
+# W&B local run directories
+**/wandb/
+
+# Python virtual environments
+workshop-setup/
+workshop/
+
+# Jupyter checkpoints
+**/.ipynb_checkpoints/
