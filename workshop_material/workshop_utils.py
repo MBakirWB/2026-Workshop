@@ -234,10 +234,11 @@ def train_one_epoch(
         # Log to W&B
         if run and (batch_idx + 1) % log_interval == 0:
             global_step = epoch * len(train_loader) + batch_idx
-            wandb.log({
+            run.log({
+                "train/global_step": global_step,
                 "train/loss_step": loss.item(),
                 "train/acc_step": 100. * correct / total,
-            }, step=global_step)
+            })
 
     epoch_loss = running_loss / len(train_loader)
     epoch_acc = 100. * correct / total
@@ -516,7 +517,8 @@ def log_checkpoint_artifact(
     )
     artifact.ttl = timedelta(days=ttl_days)
 
-    # Save checkpoint to a temp file and add to artifact
+    # Save checkpoint locally, then add as a REFERENCE artifact
+    # (logs metadata + checksum only, no upload — keeps workshop fast)
     ckpt_path = f"checkpoint_epoch{epoch}.pth"
     torch.save({
         "epoch": epoch,
@@ -524,7 +526,7 @@ def log_checkpoint_artifact(
         "optimizer_state_dict": optimizer.state_dict(),
         "config": config,
     }, ckpt_path)
-    artifact.add_file(ckpt_path)
+    artifact.add_reference(f"file://{os.path.abspath(ckpt_path)}")
 
     aliases = [f"epoch_{epoch}"]
     if is_best:
