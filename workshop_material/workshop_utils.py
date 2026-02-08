@@ -45,10 +45,8 @@ NUM_CLASSES = len(CLASS_NAMES)
 IMAGENET_MEAN = [0.485, 0.456, 0.406]
 IMAGENET_STD = [0.229, 0.224, 0.225]
 
-# =============================================================================
-# DEVICE SETUP
-# =============================================================================
 
+# DEVICE SETUP
 def get_device():
     """Get the best available device (CUDA > MPS > CPU)."""
     if torch.cuda.is_available():
@@ -59,10 +57,8 @@ def get_device():
 
 DEVICE = get_device()
 
-# =============================================================================
-# REPRODUCIBILITY
-# =============================================================================
 
+# REPRODUCIBILITY
 def set_seed(seed: int = 42, deterministic: bool = False):
     """Set all random seeds for reproducibility."""
     random.seed(seed)
@@ -73,10 +69,8 @@ def set_seed(seed: int = 42, deterministic: bool = False):
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
 
-# =============================================================================
-# DATA TRANSFORMS
-# =============================================================================
 
+# DATA TRANSFORMS
 def get_transforms(image_size: int = 224, is_training: bool = True):
     """Get image transforms optimized for underwater imagery."""
     if is_training:
@@ -96,10 +90,8 @@ def get_transforms(image_size: int = 224, is_training: bool = True):
             T.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD)
         ])
 
-# =============================================================================
-# DATASET CLASS
-# =============================================================================
 
+# DATASET CLASS
 class AquaticDataset(Dataset):
     """PyTorch Dataset for images organized by class folders."""
     
@@ -145,10 +137,8 @@ class AquaticDataset(Dataset):
         img_path, label = self.samples[idx]
         return Image.open(img_path).convert("RGB"), label
 
-# =============================================================================
-# MODEL CREATION
-# =============================================================================
 
+# MODEL CREATION
 def create_model(model_name: str = "resnet50", num_classes: int = NUM_CLASSES, 
                  pretrained: bool = True, weights_artifact: str = None, run=None):
     """Create a model using timm. Optionally load weights from a W&B artifact.
@@ -188,10 +178,8 @@ def count_parameters(model):
     trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
     return total, trainable
 
-# =============================================================================
-# TRAINING UTILITIES
-# =============================================================================
 
+# TRAINING UTILITIES
 def train_one_epoch(
     model, 
     train_loader, 
@@ -294,10 +282,8 @@ def evaluate(
     
     return epoch_loss, epoch_acc, np.array(all_preds), np.array(all_labels), np.array(all_probs)
 
-# =============================================================================
-# W&B HELPERS
-# =============================================================================
 
+# W&B HELPERS
 def generate_run_name(config: Dict) -> str:
     """Generate a descriptive run name from config.
     
