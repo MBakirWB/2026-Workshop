@@ -18,5 +18,8 @@ admin_setup_only/*.pth
 workshop-setup/
 workshop/
 
+# Python cache
+**/__pycache__/
+
 # Jupyter checkpoints
 **/.ipynb_checkpoints/
