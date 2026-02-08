@@ -1,0 +1,12 @@
+# Temporary working directories created by setup.py / prepare_local_data.py
+aqua_raw_data/
+aqua_splits/
+
+# Pretrained weight files (before they're copied to workshop_material/)
+*.pth
+
+# W&B local run directories
+wandb/
+
+# Python virtual environments
+workshop-setup/
