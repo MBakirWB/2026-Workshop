@@ -13,6 +13,8 @@ import random
 
 # Must match the primary run's ID from the notebook
 PRIMARY_RUN_ID = input("Enter the run ID from your notebook (shown after wandb.init): ").strip()
+WANDB_ENTITY = input("Enter the W&B entity: ").strip()
+WANDB_PROJECT = input("Enter the W&B project: ").strip()
 
 if not PRIMARY_RUN_ID:
     print("No run ID provided. Exiting.")
@@ -26,8 +28,8 @@ AQUA_CLASSES = [
 ]
 
 run = wandb.init(
-    entity="m-bakir",
-    project="SIE-Workshop-2026",
+    entity=WANDB_ENTITY,
+    project=WANDB_PROJECT,
     id=PRIMARY_RUN_ID,
     settings=wandb.Settings(
         mode="shared",
